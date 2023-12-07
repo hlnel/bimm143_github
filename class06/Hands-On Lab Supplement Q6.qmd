@@ -1,0 +1,60 @@
+---
+title: "Hands-on Lab Supplement Q6"
+author: "Helen Le (PID: A16300695)"
+format: pdf
+---
+
+# Original Code:
+
+```{r}
+# install.packages("bio3d")
+library(bio3d)
+
+s1 <- read.pdb("4AKE") # kinase with drug
+s2 <- read.pdb("1AKE") # kinase no drug
+s3 <- read.pdb("1E4Y") # kinase with drug
+
+s1.chainA <- trim.pdb(s1, chain="A", elety="CA")
+s2.chainA <- trim.pdb(s2, chain="A", elety="CA")
+s3.chainA <- trim.pdb(s1, chain="A", elety="CA")
+
+s1.b <- s1.chainA$atom$b
+s2.b <- s2.chainA$atom$b
+s3.b <- s3.chainA$atom$b
+
+plotb3(s1.b, sse=s1.chainA, typ="l", ylab="Bfactor")
+plotb3(s2.b, sse=s2.chainA, typ="l", ylab="Bfactor")
+plotb3(s3.b, sse=s3.chainA, typ="l", ylab="Bfactor")
+```
+
+# Generalized Code for any Protein Input:
+
+```{r}
+# install bio3d package; once in script or more preferably, in the R Console
+## install.packages("bio.3d)
+library(bio3d)
+
+# create the function for the  pdb analysis with the pdb file name, x, as the input
+gen.pdb.analysis <- function(x) {
+  # assign a vector that will read the pdb file being inputted
+  pdb <- read.pdb(x)
+  
+  # trim the pdb object by its chain type (chain="A") & its atom type (elety="CA")
+  chainA <- trim.pdb(pdb, chain="A", elety="CA")
+  
+  #extract the b-factors from the trimmed pdb vector
+  b.factor <- chainA$atom$b
+  
+  # create a plot using these extracted b-factors, setting the secondary structure object 
+    # (sse) as chain, typ="l" for a line plot, & setting the y-label as "Bfactor"
+  plotb3(b.factor, sse=chainA, typ="l", ylab="Bfactor")
+}
+```
+
+# Example of function use:
+
+```{r}
+# Input desired pdb file into function
+gen.pdb.analysis("4AKE")
+```
+
