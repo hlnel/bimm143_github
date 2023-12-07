@@ -1,0 +1,297 @@
+---
+title: "Class 10: Comparative Analysis of Structures"
+author: "Helen Le (PID: A16300695)"
+format: pdf
+---
+
+> Continuation from class10...
+
+We need some packages for today's class. These include `bio3d` and `msa`(multiple sequence analysis).
+
+The `msa` package is from BioConductor. These packages focus on genomics-type work and are managed by the `BiocManager` package.
+
+Install `install.packages("BiocManager")` and then `BiocManager::install("msa")` in the RConsole.
+
+**Q10. Which of the packages above is found only on BioConductor and not CRAN?**
+msa
+
+**Q11. Which of the above packages is not found on BioConductor or CRAN?:**
+bio3d-view
+
+**Q12. True or False? Functions from the devtools package can be used to install packages from GitHub and BitBucket?**
+TRUE
+
+```{r}
+library(bio3d)
+
+aa <- get.seq("1ake_A")
+aa
+```
+
+**Q13. How many amino acids are in this sequence, i.e. how long is this sequence?**
+214
+
+Now I can search the PDB database for related sequences:
+```{r}
+#b <- blast.pdb(aa)
+```
+
+```{r}
+#hits <- plot(b)
+```
+-log(Evalue) makes the data easier to visualize. Usually, a lower E-value is better but here, a higher E-value is better due to the -log().
+
+```{r}
+#attributes(b)
+#head(b$hit.tbl)
+```
+
+```{r}
+hits <- NULL
+hits$pdb.id <- c('1AKE_A','6S36_A','6RZE_A','3HPR_A','1E4V_A','5EJE_A','1E4Y_A','3X2S_A','6HAP_A','6HAM_A','4K46_A','3GMT_A','4PZL_A')
+
+hits$pdb.id
+```
+
+Side-note: Let's annotate these structures (in other words, find out what they are, what species they are from, stuff about the experiment they were solved in, etc.)
+
+For this, we can use the `pdb.annotate()`.
+
+```{r}
+anno <- pdb.annotate(hits$pdb.id)
+```
+
+```{r}
+attributes(anno)
+head(anno)
+```
+
+Now, we can download all these structures for further analysis with the `get.pdb()` function.
+```{r}
+# Download related PDB files
+files <- get.pdb(hits$pdb.id, path="pdbs", split=TRUE, gzip=TRUE)
+```
+
+Now, we have all these related structures we can Align & Superimpose.
+```{r}
+# Align releated PDBs
+pdbs <- pdbaln(files, fit = TRUE, exefile="msa")
+pdbs
+```
+
+## Principal Component Analysis
+```{r}
+# Perform PCA
+pc.xray <- pca(pdbs)
+plot(pc.xray)
+```
+
+# 5. Optional further visualization
+
+```{r}
+# Visualize first principal component
+pc1 <- mktrj(pc.xray, pc=1, file="pc_1.pdb")
+```
+
+> Class 11:
+
+# 7. Interpreting Results
+## Visualization of the models and their estimated reliability
+
+![](superposed_model.png)
+This superposed model is colored by uncertainty/disorder, with red for high confidence and blue for low confidence.
+
+# 8. Custom analysis of resulting models
+
+Let's move the AlphaFold results directory into the RStudio project directory.
+```{r}
+results_dir <- "hivpr_dimer_23119/"
+```
+
+```{r}
+# File names for all PDB models
+pdb_files <- list.files(path=results_dir,
+                        pattern="*.pdb",
+                        full.names = TRUE)
+pdb_files
+```
+
+```{r}
+library(bio3d)
+
+# Read all data from Models 
+#  and superpose/fit coords
+#pdbs <- pdbaln(pdb_files, fit=TRUE)
+```
+`pdbaln()` function gives an error message, likely due to `seqaln()` functionality not being set up correctly.
+
+```{r}
+# Optionally use the MSA package for use with pdbaln()
+
+pdbs <- pdbaln(pdb_files, fit=TRUE, exefile="msa")
+```
+
+```{r}
+pdbs
+```
+
+Let's calculate the RMSD between all models.
+
+```{r}
+rd <- rmsd(pdbs)
+
+range(rd)
+```
+
+Let's draw a heatmap of RMSD matrix values.
+```{r}
+library(pheatmap)
+
+colnames(rd) <- paste0("m",1:5)
+rownames(rd) <- paste0("m",1:5)
+pheatmap(rd)
+```
+
+Let's add a plot for pLDDT values across all models.
+```{r}
+# Read a reference PDB structure
+pdb <- read.pdb("1hsg")
+```
+Another way for secondary structures to be obtained is from a call to stride() or dssp() on any of the model structures.
+
+```{r}
+plotb3(pdbs$b, typ="l", lwd=2, sse=pdb)
+points(pdbs$b[2,], typ="l", col="red")
+points(pdbs$b[3,], typ="l", col="blue")
+points(pdbs$b[4,], typ="l", col="darkgreen")
+points(pdbs$b[5,], typ="l", col="orange")
+abline(v=100, col="gray")
+```
+
+We can improve the superposition/fitting of our models by finding the most consistent “rigid core” common across all the models. For this we will use the `core.find()` function:
+```{r}
+core <- core.find(pdbs)
+
+# We can use the identified core atom positions as a basis for a more suitable superposition:
+core.inds <- print(core, vol=0.5)
+
+xyz <- pdbfit(pdbs, core.inds, outpath="corefit_structures")
+```
+
+Here is the core superposed structure on Mol* Viewer:
+
+![](core_superposed.png)
+
+Now, let's update our RMSD analysis & examine the RMSF between positions of the structure.
+
+```{r}
+rd <- rmsd(xyz)
+
+# Change the names for easy reference
+colnames(rd) <- paste0("m",1:5)
+rownames(rd) <- paste0("m",1:5)
+pheatmap(rd)
+```
+
+```{r}
+rf <- rmsf(xyz)
+
+plotb3(rf, sse=pdb)
+abline(v=100, col="gray", ylab="RMSF")
+```
+
+## Predicted Alignment Error for Domains
+
+Let's read the JSON format files from the Predicted Alignment Error (PAE) produced by AlphaFold.
+
+```{r}
+library(jsonlite)
+
+# Listing of all PAE JSON files
+pae_files <- list.files(path=results_dir,
+                        pattern=".*model.*\\.json",
+                        full.names = TRUE)
+```
+
+```{r}
+pae1 <- read_json(pae_files[1],simplifyVector = TRUE)
+pae5 <- read_json(pae_files[5],simplifyVector = TRUE)
+
+attributes(pae1)
+```
+
+```{r}
+# Per-residue pLDDT scores 
+#  same as B-factor of PDB..
+head(pae1$plddt) 
+
+pae1$max_pae
+
+pae5$max_pae
+```
+
+```{r}
+plot.dmat(pae1$pae, 
+          xlab="Residue Position (i)",
+          ylab="Residue Position (j)")
+```
+
+```{r}
+plot.dmat(pae5$pae, 
+          xlab="Residue Position (i)",
+          ylab="Residue Position (j)",
+          grid.col = "black",
+          zlim=c(0,30))
+```
+
+Let's plot these all these using the same z-range.
+```{r}
+# Below is the model 1 plot with the same data range as the plot for model 5.
+plot.dmat(pae1$pae, 
+          xlab="Residue Position (i)",
+          ylab="Residue Position (j)",
+          grid.col = "black",
+          zlim=c(0,30))
+```
+
+## Residue conservation from alignment file
+
+```{r}
+aln_file <- list.files(path=results_dir,
+                       pattern=".a3m$",
+                        full.names = TRUE)
+aln_file
+```
+
+```{r}
+aln <- read.fasta(aln_file[1], to.upper = TRUE)
+```
+
+```{r}
+dim(aln$ali)
+```
+
+We can score residue conservation in the alignment with the `conserv()` function.
+```{r}
+sim <- conserv(aln)
+
+plotb3(sim[1:99], sse=trim.pdb(pdb, chain="A"))
+```
+
+```{r}
+con <- consensus(aln, cutoff = 0.9)
+con$seq
+```
+Using the `consensus()` function, we can see the conserved Active Site residues D25, T26, G27, A28.
+
+For a final visualization we can map this conservation score to the Occupancy column of a PDB file for viewing in molecular viewer programs such as Mol*, PyMol, VMD, chimera etc.
+```{r}
+m1.pdb <- read.pdb(pdb_files[1])
+occ <- vec2resno(c(sim[1:99], sim[1:99]), m1.pdb$atom$resno)
+write.pdb(m1.pdb, o=occ, file="m1_conserv.pdb")
+```
+
+Here is an image of this data generated from and Mol* using coloring by Occupancy. This is done in a similar manor to the pLDDT coloring procedure detailed above.
+![](m1_conserv_model.png)
+
+Top ranked dimer model colored by sequence conservation. Conserved positions in a darker purple. The DTGA motif of one chain is highlighted in green.

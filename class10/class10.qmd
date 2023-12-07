@@ -1,0 +1,128 @@
+---
+title: "Class 09: Structural Bioinformatics (pt. 1)"
+author: "Helen Le (PID: A16300695)"
+format: pdf
+---
+
+# 1: Introduction to the RCSB Protein Data Bank (PDB)
+
+First, let's see what is in the PDC database-- the main repository of protein structures. 
+
+Downloaded composition stats from: hhtps://www.rcsb.org/stats/summary
+
+For context: Release 2023_04 of 13-Sept-2023 of UniProt/TrEMBL contains 251600,768 sequence entries. The PDB only contains 183,201.
+
+```{r}
+stats <- read.csv("PDBstats.csv", row.names=1)
+stats
+```
+
+There's a problem here due to the commas in the numbers. This causes R to treat them as characters.
+
+```{r}
+x <- stats$X.ray
+x
+```
+
+
+```{r}
+as.numeric(gsub(",", "", x))
+```
+
+```{r}
+rm.comma <- function(x) {
+  as.numeric(gsub(",", "", x))
+}
+```
+
+```{r}
+rm.comma(stats$EM)
+```
+
+I can use `apply()` to fix the whole table...
+
+```{r}
+pdbstats <- apply(stats, 2, rm.comma)
+rownames(pdbstats) <- rownames(stats)
+head(pdbstats)
+```
+Without the `row.names=1`, it would make the column values `NA`. Save this matric to a vector & reinsert the rownames using `rownames()`.
+
+This can also be done using the `readr` package.
+
+**Q1: What percentage of structures in the PDB are solved by X-Ray and Electron Microscopy.**
+```{r}
+totals <- apply(pdbstats, 2, sum)
+round(totals/totals["Total"] * 100, 2)
+```
+93.16% of structures in the PDB are solved by X-ray & EM.
+
+**Q2: What proportion of structures in the PDB are protein?**
+```{r}
+round(pdbstats[, "Total"]/sum(pdbstats[,"Total"]) * 100, 2)
+```
+86.67% of thructures in the PDB are protein.
+
+**Q3: Type HIV in the PDB website search box on the home page and determine how many HIV-1 protease structures are in the current PDB?**
+SKIPPED
+
+# 2. Visualizing the HIV-1 protease structure
+
+**Q4: Water molecules normally have 3 atoms. Why do we see just one atom per water molecule in this structure?**
+This is a 2 Angstrom structure and Hydrogen is not visible at this resolution. You need 1A or better to view the entirety of the water molecule.
+
+**Q5: There is a critical “conserved” water molecule in the binding site. Can you identify this water molecule? What residue number does this water molecule have?**
+This water molecule is water 308.
+
+**Q6: Generate and save a figure clearly showing the two distinct chains of HIV-protease along with the ligand. You might also consider showing the catalytic residues ASP 25 in each chain and the critical water (we recommend “Ball & Stick” for these side-chains). Add this figure to your Quarto document.**
+
+Here is a lovely figure of HIP-Pr with the catalytic ASP residues, the MK compound and the all important water 308.
+
+![Figure caption](1HSG.png)
+
+# 3. Introduction to Bio3D in R
+## The bio3d package for structural bioinformatics
+
+```{r}
+library(bio3d)
+```
+
+```{r}
+pdb <- read.pdb("1hsg")
+```
+
+```{r}
+pdb
+```
+
+**Q7: How many amino acid residues are there in this pdb object?**
+There are 198 AA residues in this pdb object.
+
+**Q8: Name one of the two non-protein residues?**
+The non-protein residues are HOH & MK1
+
+**Q9: How many protein chains are in this structure?**
+There are 2 protein chains.
+
+```{r}
+attributes(pdb)
+
+head(pdb$atom)
+```
+
+# Predicting functional motions of a single structure
+
+Let's finish today with a bioinformatics calculation to predict the functional motions of a PDB structure.
+
+```{r}
+adk <- read.pdb("6s36")
+
+# Perform flexiblity prediction
+m <- nma(adk)
+```
+
+```{r}
+plot(m)
+mktrj(m, file="adk_m7.pdb")
+```
+
