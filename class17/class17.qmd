@@ -1,0 +1,42 @@
+---
+title: "Class 17: Essential UNIX for Bioinformatics"
+author: "Helen Le (PID: A16300695)"
+format: pdf
+---
+
+```{r}
+ze <- read.delim("mm-second.x.zebrafish.tsv")
+
+colnames(ze) <- c("qseqid", "sseqid", "pident", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore")
+
+head(ze)
+```
+
+Let's make a histogram of `$bitscore` values.
+```{r}
+hist(ze$bitscore, breaks=30)
+
+hist(ze$pident, breaks=30)
+```
+
+Bitscores are only somewhat related to pident; they take into account not only the percent identity but the length of the alignment. You can get a napkin sketch estimate of this by doing the following:
+```{r}
+## Asuming your blast results are stored in an object called 'ze'
+plot(ze$pident  * (ze$qend - ze$qstart), ze$bitscore)
+```
+
+Let's use ggplot instead.
+
+```{r}
+library(ggplot2)
+
+ggplot(ze, aes(pident, bitscore)) +
+  geom_point(alpha=0.1)
+```
+
+```{r}
+ggplot(ze, aes((ze$pident * (ze$qend - ze$qstart)), bitscore)) +
+  geom_point(alpha=0.1) +
+  geom_smooth()
+```
+
